@@ -73,6 +73,8 @@ Commands:
   dep <id> <dep-id>        Add dependency (id depends on dep-id)
   dep tree [--full] <id>   Show dependency tree (--full disables dedup)
   undep <id> <dep-id>      Remove dependency
+  link <id> <id> [id...]   Link tickets together (symmetric)
+  unlink <id> <target-id>  Remove link between tickets
   ls [--status=X]          List tickets
   ready                    List open/in-progress tickets with deps resolved
   blocked                  List open/in-progress tickets with unresolved deps
