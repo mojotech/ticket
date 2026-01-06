@@ -27,6 +27,17 @@ brew install ticket
 yay -S ticket  # or paru, etc.
 ```
 
+**Nix (flakes):**
+```bash
+# Run directly
+nix run github:wedow/ticket
+
+# Install to profile
+nix profile install github:wedow/ticket
+
+# Or add to your flake.nix inputs
+```
+
 **From source (auto-updates on git pull):**
 ```bash
 git clone https://github.com/wedow/ticket.git

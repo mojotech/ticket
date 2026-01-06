@@ -4,6 +4,7 @@
 
 ### Added
 - `add-note` command for appending timestamped notes to tickets
+- Nix flake support for installation via `nix run github:wedow/ticket`
 
 ## [0.2.0] - 2026-01-04
 
