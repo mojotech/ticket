@@ -42,6 +42,7 @@
 - `-a, --assignee` filter flag for `ls`, `ready`, `blocked`, and `closed` commands
 - `--tags` flag for `create` command to add comma-separated tags
 - `-T, --tag` filter flag for `ls`, `ready`, `blocked`, and `closed` commands
+- Nix flake support for installation via `nix run github:wedow/ticket`
 
 ## [0.2.0] - 2026-01-04
 
