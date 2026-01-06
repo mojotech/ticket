@@ -12,6 +12,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
 
       - name: Extract changelog
         id: changelog
@@ -39,7 +42,10 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${VERSION}.tar.gz" -o release.tar.gz
           SHA=$(sha256sum release.tar.gz | cut -d' ' -f1)
+          # Convert hex SHA to Nix SRI format (sha256-base64)
+          NIX_HASH="sha256-$(echo -n "$SHA" | xxd -r -p | base64)"
           echo "sha256=$SHA" >> $GITHUB_OUTPUT
+          echo "nix_hash=$NIX_HASH" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew tap
@@ -55,3 +61,20 @@ jobs:
         run: |
           chmod +x scripts/publish-aur.sh
           ./scripts/publish-aur.sh "${{ steps.sha.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
+
+      - name: Update Nix derivation
+        run: |
+          VERSION=${{ steps.sha.outputs.version }}
+          PKGVER=${VERSION#v}
+          NIX_HASH=${{ steps.sha.outputs.nix_hash }}
+
+          # Update version and hash in default.nix
+          sed -i "s|version ? \"[^\"]*\"|version ? \"${PKGVER}\"|" pkg/nix/default.nix
+          sed -i "s|hash = \"sha256-[^\"]*\"|hash = \"${NIX_HASH}\"|" pkg/nix/default.nix
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pkg/nix/default.nix
+          git commit -m "nix: update to ${VERSION}" || echo "No changes to commit"
+          git push origin HEAD:master
+        working-directory: ${{ github.workspace }}
