@@ -108,6 +108,7 @@ Commands:
   query [jq-filter]        Output tickets as JSON, optionally filtered
   migrate-beads            Import tickets from .beads/issues.jsonl
   super <cmd> [args]       Bypass plugins, run built-in command directly
+  --version, -V            Print version
 
 Searches parent directories for .tickets/ (override with TICKETS_DIR env var)
 Supports partial ID matching (e.g., 'tk show 5c4' matches 'nw-5c46')

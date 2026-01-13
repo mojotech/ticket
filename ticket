@@ -4,6 +4,8 @@ set -euo pipefail
 # ticket - minimal ticket system with dependency tracking
 # Stores markdown files with YAML frontmatter in .tickets/
 
+VERSION="0.2.1"
+
 # Find .tickets directory by walking parent directories
 find_tickets_dir() {
     # Explicit env var takes priority
@@ -1470,7 +1472,7 @@ cmd_help() {
     local cmd
     cmd=$(basename "$0")
     cat << EOF
-$cmd - minimal ticket system with dependency tracking
+$cmd $VERSION - minimal ticket system with dependency tracking
 
 Usage: $cmd <command> [args]
 
@@ -1505,6 +1507,7 @@ Commands:
   query [jq-filter]        Output tickets as JSON, optionally filtered
   migrate-beads            Import tickets from .beads/issues.jsonl
   super <cmd> [args]       Bypass plugins, run built-in command directly
+  --version, -V            Print version
 EOF
 
     # List installed plugins
@@ -1581,6 +1584,7 @@ case "${1:-help}" in
     query) shift; cmd_query "$@" ;;
     migrate-beads) shift; cmd_migrate_beads "$@" ;;
     help|--help|-h) cmd_help ;;
+    --version|-V) echo "ticket $VERSION" ;;
     *)
         echo "Unknown command: $1" >&2
         cmd_help >&2
