@@ -5,6 +5,7 @@
 ### Added
 - `add-note` command for appending timestamped notes to tickets
 - `-a, --assignee` filter flag for `ls`, `ready`, `blocked`, and `closed` commands
+- `--tags` flag for `create` command to add comma-separated tags
 
 ## [0.2.0] - 2026-01-04
 

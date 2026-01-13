@@ -112,7 +112,7 @@ cmd_create() {
     ensure_dir
 
     local title="" description="" design="" acceptance=""
-    local priority=2 issue_type="task" assignee="" external_ref="" parent=""
+    local priority=2 issue_type="task" assignee="" external_ref="" parent="" tags=""
 
     # Default assignee to git user.name if available
     assignee=$(git config user.name 2>/dev/null || true)
@@ -128,6 +128,7 @@ cmd_create() {
             -a|--assignee) assignee="$2"; shift 2 ;;
             --external-ref) external_ref="$2"; shift 2 ;;
             --parent) parent="$2"; shift 2 ;;
+            --tags) tags="$2"; shift 2 ;;
             -*) echo "Unknown option: $1" >&2; return 1 ;;
             *) title="$1"; shift ;;
         esac
@@ -152,6 +153,9 @@ cmd_create() {
         [[ -n "$assignee" ]] && echo "assignee: $assignee"
         [[ -n "$external_ref" ]] && echo "external-ref: $external_ref"
         [[ -n "$parent" ]] && echo "parent: $parent"
+        if [[ -n "$tags" ]]; then
+            echo "tags: [${tags//,/, }]"
+        fi
         echo "---"
         echo "# $title"
         echo ""
@@ -1231,6 +1235,7 @@ Commands:
     -a, --assignee         Assignee
     --external-ref         External reference (e.g., gh-123, JIRA-456)
     --parent               Parent ticket ID
+    --tags                 Comma-separated tags (e.g., --tags ui,backend,urgent)
   start <id>               Set status to in_progress
   close <id>               Set status to closed
   reopen <id>              Set status to open
