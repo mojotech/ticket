@@ -190,6 +190,20 @@ cmd_create() {
     } > "$file"
 
     echo "$id"
+
+    # Update parent's deps to include this child
+    if [[ -n "$parent_file" ]]; then
+        local parent_deps
+        parent_deps=$(yaml_field "$parent_file" "deps")
+        
+        if [[ "$parent_deps" == "[]" ]]; then
+            update_yaml_field "$parent_file" "deps" "[$id]"
+        else
+            local new_deps
+            new_deps=$(echo "$parent_deps" | sed "s/\]/, $id]/")
+            update_yaml_field "$parent_file" "deps" "$new_deps"
+        fi
+    fi
 }
 
 # Valid statuses
