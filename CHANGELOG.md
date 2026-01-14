@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- `--parent` flag on `create` now also adds child as dependency on parent ticket
+- `create --parent` fails if parent ID not found or ambiguous
+- `create --parent` warns (to stderr) if parent ticket is closed
+
 ## [0.2.2] - 2026-01-13
 
 ### Added
