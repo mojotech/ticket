@@ -140,6 +140,15 @@ cmd_create() {
         parent_file=$(ticket_path "$parent") || return 1
     fi
 
+    # Warn if parent is closed
+    if [[ -n "$parent_file" ]]; then
+        local parent_status
+        parent_status=$(yaml_field "$parent_file" "status")
+        if [[ "$parent_status" == "closed" ]]; then
+            echo "Warning: parent $parent is closed" >&2
+        fi
+    fi
+
     title="${title:-Untitled}"
     local id
     id=$(generate_id)
