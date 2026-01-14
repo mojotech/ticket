@@ -134,6 +134,12 @@ cmd_create() {
         esac
     done
 
+    # Validate parent exists before creating child
+    local parent_file=""
+    if [[ -n "$parent" ]]; then
+        parent_file=$(ticket_path "$parent") || return 1
+    fi
+
     title="${title:-Untitled}"
     local id
     id=$(generate_id)
