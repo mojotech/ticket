@@ -480,7 +480,7 @@ cmd_dep() {
         update_yaml_field "$file" "deps" "[$dep_id]"
     else
         local new_deps
-        new_deps=$(echo "$current_deps" | sed "s/\]/, $dep_id]/")
+        new_deps=${current_deps//s\/$dep_id/]/}
         update_yaml_field "$file" "deps" "$new_deps"
     fi
 
@@ -756,7 +756,7 @@ add_link_to_file() {
         update_yaml_field "$file" "links" "[$target_id]"
     else
         local new_links
-        new_links=$(echo "$current_links" | sed "s/\]/, $target_id]/")
+        new_links=${current_links//s/\]/$target_id]/}
         update_yaml_field "$file" "links" "$new_links"
     fi
 }
