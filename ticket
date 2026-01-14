@@ -1019,10 +1019,6 @@ cmd_link() {
         files+=("$file")
     done
 
-    # Use awk to update all files in one pass per file
-    local id_list
-    id_list=$(printf '%s\n' "${ids[@]}")
-
     local count=0
     for ((i=0; i<${#ids[@]}; i++)); do
         local file="${files[$i]}"
