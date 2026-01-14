@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `--dep` flag for `create` command to add initial dependency at creation time
+
 ### Changed
 
 - Clarified `--parent` flag documentation: advisory metadata for epic/subtask hierarchy, not a blocking dependency

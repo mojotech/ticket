@@ -86,8 +86,9 @@ Commands:
     -p, --priority         Priority 0-4, 0=highest [default: 2]
     -a, --assignee         Assignee [default: git user.name]
     --external-ref         External reference (e.g., gh-123, JIRA-456)
-    --parent               Parent ticket ID
+    --parent               Parent ticket ID (advisory, for epic/subtask hierarchy)
     --tags                 Comma-separated tags (e.g., --tags ui,backend,urgent)
+    --dep                  Initial dependency (ticket must be completed first)
   start <id>               Set status to in_progress
   close <id>               Set status to closed
   reopen <id>              Set status to open
