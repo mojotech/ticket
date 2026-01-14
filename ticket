@@ -816,7 +816,7 @@ cmd_closed() {
 
     # List files by mtime (most recent first), filter closed, limit output
     local files
-    files=$(ls -t "$TICKETS_DIR"/*.md 2>/dev/null | head -n 100)
+    files=$(find "$TICKETS_DIR" -name "*.md" -type f -printf "%T+ %p\n" 2>/dev/null | sort -nr | head -n 100 | cut -d " " -f 2)
     [[ -z "$files" ]] && return 0
     echo "$files" | xargs awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
     BEGIN { FS=": "; in_front=0 }
