@@ -1577,7 +1577,7 @@ cmd_prune() {
 
     # Filter to eligible tickets and prune
     local count=0
-    while IFS='|' read -r filepath id status closed_at deps title; do
+    while IFS='|' read -r filepath id status closed_at _deps title; do
         # Must be closed
         [[ "$status" != "closed" ]] && continue
 
