@@ -10,7 +10,7 @@ MojoTech fork of the original [wedow/ticket](https://github.com/wedow/ticket) pr
 
 ## Commands
 
-**There is no build step, test suite, or linter.** This is a portable bash script.
+**There is no build step or test suite.** This is a portable bash script.
 
 ```bash
 # Run the script directly
@@ -19,6 +19,9 @@ MojoTech fork of the original [wedow/ticket](https://github.com/wedow/ticket) pr
 # Or if installed
 tk help
 
+# Lint check (run after any script modification)
+shellcheck ./ticket
+
 # Manual testing - create test tickets
 tk create "Test ticket" -d "Description"
 tk ls
@@ -26,7 +29,10 @@ tk ready
 tk blocked
 ```
 
-**Verification**: After making changes, manually test affected commands. The script should work on both GNU/Linux and macOS (BSD).
+**Verification**: After making changes:
+1. Run `shellcheck ./ticket` and fix any warnings
+2. Manually test affected commands
+3. The script should work on both GNU/Linux and macOS (BSD)
 
 ## Architecture
 
