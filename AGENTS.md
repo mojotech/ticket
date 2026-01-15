@@ -22,11 +22,11 @@ tk help
 # Lint check (run after any script modification)
 shellcheck ./ticket
 
-# Manual testing - create test tickets
-tk create "Test ticket" -d "Description"
-tk ls
-tk ready
-tk blocked
+# Manual testing - use a separate test directory to avoid polluting real tickets
+TICKETS_DIR=/tmp/test-tickets ./ticket create "Test ticket" -d "Description"
+TICKETS_DIR=/tmp/test-tickets ./ticket ls
+TICKETS_DIR=/tmp/test-tickets ./ticket ready
+TICKETS_DIR=/tmp/test-tickets ./ticket blocked
 ```
 
 **Verification**: After making changes:
