@@ -12,6 +12,8 @@ MojoTech fork of the original [wedow/ticket](https://github.com/wedow/ticket) pr
 
 **There is no build step or test suite.** This is a portable bash script.
 
+**Development tools require devenv.** Tools like `shellcheck`, `gh`, etc. are provided by the devenv environment. Use `devenv shell --` prefix to run them:
+
 ```bash
 # Run the script directly
 ./ticket help
@@ -20,7 +22,11 @@ MojoTech fork of the original [wedow/ticket](https://github.com/wedow/ticket) pr
 tk help
 
 # Lint check (run after any script modification)
-shellcheck ./ticket
+devenv shell -- shellcheck ./ticket
+
+# GitHub CLI operations
+devenv shell -- gh issue list
+devenv shell -- gh pr view 5
 
 # Manual testing - use a separate test directory to avoid polluting real tickets
 TICKETS_DIR=/tmp/test-tickets ./ticket create "Test ticket" -d "Description"
@@ -30,7 +36,7 @@ TICKETS_DIR=/tmp/test-tickets ./ticket blocked
 ```
 
 **Verification**: After making changes:
-1. Run `shellcheck ./ticket` and fix any warnings
+1. Run `devenv shell -- shellcheck ./ticket` and fix any warnings
 2. Manually test affected commands
 3. The script should work on both GNU/Linux and macOS (BSD)
 
