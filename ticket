@@ -103,9 +103,8 @@ update_yaml_field() {
         _sed_i "$file" "s/^${field}:.*/${field}: ${value}/"
     else
         # Insert after first --- (beginning of frontmatter)
-        _sed_i "$file" "0,/^---$/ { /^---$/a\\
-${field}: ${value}
-}"
+        _sed_i "$file" "1s/^---$/---\\
+${field}: ${value}/"
     fi
 }
 
@@ -1278,31 +1277,30 @@ cmd_prune() {
 
     [[ -z "$ticket_data" ]] && return 0
 
-    # Build set of ticket IDs that are dependencies of open/in_progress tickets
-    local protected_deps
-    protected_deps=$(echo "$ticket_data" | awk -F'|' '
-    $3 == "open" || $3 == "in_progress" {
-        n = split($5, arr, ",")
-        for (i = 1; i <= n; i++) {
-            if (arr[i] != "") print arr[i]
-        }
+    # Filter to eligible tickets (closed and not a dependency)
+    local eligible_tickets
+    eligible_tickets=$(echo "$ticket_data" | awk -F'|' '
+    function mark_protected(id,  i, n, arr) {
+        if (id in protected) return
+        protected[id] = 1
+        n = split(deps[id], arr, ",")
+        for (i=1; i<=n; i++) if (arr[i] != "") mark_protected(arr[i])
     }
-    ' | sort -u)
+    {
+        t[NR]=$0; ids[NR]=$2; stats[NR]=$3; closed[NR]=$4; deps[$2]=$5
+    }
+    END {
+        for (i=1; i<=NR; i++)
+            if (stats[i]=="open" || stats[i]=="in_progress") mark_protected(ids[i])
+        for (i=1; i<=NR; i++)
+            if ((stats[i]=="closed" || stats[i]=="done") && closed[i]!="" && !(ids[i] in protected)) print t[i]
+    }')
 
-    # Filter to eligible tickets and prune
+    [[ -z "$eligible_tickets" ]] && return 0
+
+    # Prune eligible tickets
     local count=0
     while IFS='|' read -r filepath id status closed_at _deps title; do
-        # Must be closed
-        [[ "$status" != "closed" ]] && continue
-
-        # Must have closed_at field (backwards compatibility)
-        [[ -z "$closed_at" ]] && continue
-
-        # Check if protected as a dependency
-        if echo "$protected_deps" | _grep -qx "$id" 2>/dev/null; then
-            continue
-        fi
-
         # Check age threshold (unless --all)
         if [[ "$prune_all" -eq 0 ]]; then
             # Convert ISO date to epoch for comparison
@@ -1326,7 +1324,9 @@ cmd_prune() {
         closed_display="${closed_at%%T*}"
 
         # Output the ticket info
-        echo "$id: $title (closed $closed_display)"
+        local prefix=""
+        [[ "$dry_run" -eq 1 ]] && prefix="[DRY-RUN] "
+        echo "${prefix}${id}: $title (closed $closed_display)"
 
         # Delete unless dry-run
         if [[ "$dry_run" -eq 0 ]]; then
@@ -1334,7 +1334,7 @@ cmd_prune() {
         fi
 
         ((count++)) || true
-    done <<< "$ticket_data"
+    done <<< "$eligible_tickets"
 
     # Summary line
     if [[ "$count" -gt 0 ]]; then

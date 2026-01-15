@@ -10,11 +10,15 @@
 - `closed_at` timestamp field set when tickets are closed
 - Dependency protection: closed tickets referenced by open/in-progress tickets are never pruned
 
+### Fixed
+- Recursive dependency protection in `prune` command (was only direct)
+- BSD sed compatibility in `update_yaml_field` (was GNU-only)
+- O(N^2) performance in `prune` dependency lookup by using awk associative arrays
+
 ### Changed
-- `status` command now manages `closed_at` field automatically:
-  - Sets `closed_at` when status becomes `closed` (if not already set)
-  - Clears `closed_at` when status becomes `open` or `in_progress`
-- Re-closing an already-closed ticket preserves the original `closed_at` timestamp
+- `prune` command now prefixes dry-run output with `[DRY-RUN]` for clarity
+- `prune` command now considers `done` status as eligible for pruning
+- `update_yaml_field` now uses more robust first-line substitution for new fields
 
 ## [0.2.3] - 2026-01-14
 
