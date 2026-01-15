@@ -275,6 +275,20 @@ cmd_status() {
     file=$(ticket_path "$id") || return 1
 
     update_yaml_field "$file" "status" "$status"
+
+    # Manage closed_at field based on status
+    if [[ "$status" == "closed" ]]; then
+        # Set closed_at only if not already present (first close wins)
+        if ! _grep -q "^closed_at:" "$file"; then
+            update_yaml_field "$file" "closed_at" "$(_iso_date)"
+        fi
+    else
+        # Clear closed_at when moving to any non-closed status
+        if _grep -q "^closed_at:" "$file"; then
+            _sed_i "$file" '/^closed_at:/d'
+        fi
+    fi
+
     echo "Updated $(basename "$file" .md) -> $status"
 }
 
