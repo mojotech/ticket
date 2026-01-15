@@ -1491,6 +1491,45 @@ _list_plugins() {
     done
 }
 
+cmd_prune() {
+    [[ ! -d "$TICKETS_DIR" ]] && return 0
+
+    local days=7
+    local prune_all=0
+    local dry_run=0
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --days=*)
+                days="${1#--days=}"
+                # Validate: must be a positive integer (>= 1)
+                if ! [[ "$days" =~ ^[1-9][0-9]*$ ]]; then
+                    echo "Error: --days requires a positive integer (got '$days')" >&2
+                    return 1
+                fi
+                shift
+                ;;
+            --all)
+                prune_all=1
+                shift
+                ;;
+            --dry-run)
+                dry_run=1
+                shift
+                ;;
+            *)
+                echo "Error: unknown option '$1'" >&2
+                echo "Usage: $(basename "$0") prune [--days=N] [--all] [--dry-run]" >&2
+                return 1
+                ;;
+        esac
+    done
+
+    # TODO: Implement pruning logic in next task
+    echo "DEBUG: days=$days, prune_all=$prune_all, dry_run=$dry_run"
+}
+
 cmd_help() {
     local cmd
     cmd=$(basename "$0")
