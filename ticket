@@ -1240,8 +1240,106 @@ cmd_prune() {
         esac
     done
 
-    # TODO: Implement pruning logic in next task
-    echo "DEBUG: days=$days, prune_all=$prune_all, dry_run=$dry_run"
+    # Calculate cutoff timestamp (seconds since epoch)
+    local cutoff_epoch
+    cutoff_epoch=$(( $(date +%s) - (days * 86400) ))
+
+    # Collect all ticket data in one awk pass
+    # Output format: filepath|id|status|closed_at|deps_csv|title
+    local ticket_data
+    ticket_data=$(awk '
+    BEGIN { FS=": "; in_front=0 }
+    FNR==1 {
+        if (prev_file) emit()
+        id=""; status=""; closed_at=""; deps=""; title=""; in_front=0
+        prev_file=FILENAME
+    }
+    /^---$/ { in_front = !in_front; next }
+    in_front && /^id:/ { id = $2 }
+    in_front && /^status:/ { status = $2 }
+    in_front && /^closed_at:/ { closed_at = $2 }
+    in_front && /^deps:/ {
+        deps = $2
+        gsub(/[\[\] ]/, "", deps)
+    }
+    !in_front && /^# / && title == "" { title = substr($0, 3) }
+    function emit() {
+        if (id != "") {
+            printf "%s|%s|%s|%s|%s|%s\n", prev_file, id, status, closed_at, deps, title
+        }
+    }
+    END { if (prev_file) emit() }
+    ' "$TICKETS_DIR"/*.md 2>/dev/null)
+
+    [[ -z "$ticket_data" ]] && return 0
+
+    # Build set of ticket IDs that are dependencies of open/in_progress tickets
+    local protected_deps
+    protected_deps=$(echo "$ticket_data" | awk -F'|' '
+    $3 == "open" || $3 == "in_progress" {
+        n = split($5, arr, ",")
+        for (i = 1; i <= n; i++) {
+            if (arr[i] != "") print arr[i]
+        }
+    }
+    ' | sort -u)
+
+    # Filter to eligible tickets and prune
+    local count=0
+    while IFS='|' read -r filepath id status closed_at deps title; do
+        # Must be closed
+        [[ "$status" != "closed" ]] && continue
+
+        # Must have closed_at field (backwards compatibility)
+        [[ -z "$closed_at" ]] && continue
+
+        # Check if protected as a dependency
+        if echo "$protected_deps" | _grep -qx "$id" 2>/dev/null; then
+            continue
+        fi
+
+        # Check age threshold (unless --all)
+        if [[ "$prune_all" -eq 0 ]]; then
+            # Convert ISO date to epoch for comparison
+            # Handle both GNU and BSD date; skip if unparseable
+            local closed_epoch
+            if date -d "$closed_at" +%s &>/dev/null; then
+                closed_epoch=$(date -d "$closed_at" +%s)
+            elif closed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$closed_at" +%s 2>/dev/null); then
+                : # parsed successfully
+            else
+                # Malformed date — skip this ticket (treat as missing closed_at)
+                continue
+            fi
+
+            # Skip if closed too recently
+            [[ "$closed_epoch" -gt "$cutoff_epoch" ]] && continue
+        fi
+
+        # Format closed date for display (just the date part)
+        local closed_display
+        closed_display="${closed_at%%T*}"
+
+        # Output the ticket info
+        echo "$id: $title (closed $closed_display)"
+
+        # Delete unless dry-run
+        if [[ "$dry_run" -eq 0 ]]; then
+            rm "$filepath"
+        fi
+
+        ((count++)) || true
+    done <<< "$ticket_data"
+
+    # Summary line
+    if [[ "$count" -gt 0 ]]; then
+        if [[ "$dry_run" -eq 1 ]]; then
+            echo "Would prune $count tickets"
+        else
+            echo "Pruned $count tickets"
+        fi
+    fi
+    # Silent exit (code 0) when count is 0, per design spec
 }
 
 cmd_help() {
