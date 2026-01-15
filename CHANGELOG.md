@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `prune` command to delete old closed tickets
+  - `--days=N` to set age threshold (default: 7 days)
+  - `--all` to prune regardless of age
+  - `--dry-run` to preview without deleting
+- `closed_at` timestamp field set when tickets are closed
+- Dependency protection: closed tickets referenced by open/in-progress tickets are never pruned
+
+### Changed
+- `status` command now manages `closed_at` field automatically:
+  - Sets `closed_at` when status becomes `closed` (if not already set)
+  - Clears `closed_at` when status becomes `open` or `in_progress`
+- Re-closing an already-closed ticket preserves the original `closed_at` timestamp
+
 ## [0.2.3] - 2026-01-14
 
 ### Added

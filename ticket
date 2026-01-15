@@ -1530,6 +1530,11 @@ cmd_prune() {
     local cutoff_epoch
     cutoff_epoch=$(( $(date +%s) - (days * 86400) ))
 
+    # Check for any ticket files first (glob may fail with set -e if empty)
+    local md_files
+    md_files=$(find "$TICKETS_DIR" -maxdepth 1 -name '*.md' 2>/dev/null)
+    [[ -z "$md_files" ]] && return 0
+
     # Collect all ticket data in one awk pass
     # Output format: filepath|id|status|closed_at|deps_csv|title
     local ticket_data
