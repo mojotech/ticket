@@ -5,7 +5,7 @@ set -euo pipefail
 # Stores markdown files with YAML frontmatter in .tickets/
 
 VERSION="0.2.3"
-TICKETS_DIR=".tickets"
+TICKETS_DIR="${TICKETS_DIR:-.tickets}"
 
 # Prefer ripgrep if available, fall back to grep
 if command -v rg &>/dev/null; then
