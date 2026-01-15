@@ -1564,6 +1564,10 @@ Commands:
   ready [-a X] [-T X]      List open/in-progress tickets with deps resolved
   blocked [-a X] [-T X]    List open/in-progress tickets with unresolved deps
   closed [--limit=N] [-a X] [-T X] List recently closed tickets (default 20, by mtime)
+  prune [options]          Delete old closed tickets
+    --days=N               Only prune tickets closed > N days ago [default: 7]
+    --all                  Prune all eligible closed tickets
+    --dry-run              Preview what would be deleted
   show <id>                Display ticket
   edit <id>                Open ticket in \$EDITOR
   add-note <id> [text]     Append timestamped note (or pipe via stdin)
@@ -1641,6 +1645,7 @@ case "${1:-help}" in
     ready)  shift; cmd_ready "$@" ;;
     blocked) shift; cmd_blocked "$@" ;;
     closed) shift; cmd_closed "$@" ;;
+    prune)  shift; cmd_prune "$@" ;;
     show)   shift; cmd_show "$@" ;;
     edit)   shift; cmd_edit "$@" ;;
     add-note) shift; cmd_add_note "$@" ;;
