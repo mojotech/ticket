@@ -13,7 +13,7 @@
   jq ? null,
   # Allow source override for flake usage
   source ? null,
-  version ? "0.2.2",
+  version ? "0.2.3",
 }:
 stdenv.mkDerivation rec {
   pname = "ticket";
@@ -27,7 +27,7 @@ stdenv.mkDerivation rec {
         owner = "mojotech";
         repo = "ticket";
         rev = "v${version}";
-        hash = "sha256-7Owfd4uexlpv+4+E9SCxnz6q0hTFhRK8rYQraW/54ec=";
+        hash = "sha256-ynehyx6Ipx50d10oEMI1VKpEdK3wjRoeAYCoFi4+kvM=";
       };
 
   nativeBuildInputs = [makeWrapper];
