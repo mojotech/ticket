@@ -2,7 +2,10 @@
 
 {
   # https://devenv.sh/packages/
-  packages = [ pkgs.shellcheck ];
+  packages = [ 
+    pkgs.gh
+    pkgs.shellcheck 
+  ];
 
   # https://devenv.sh/basics/
   enterShell = ''
