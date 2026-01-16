@@ -101,10 +101,10 @@ Commands:
   ready                    List open/in-progress tickets with deps resolved
   blocked                  List open/in-progress tickets with unresolved deps
   closed [--limit=N]       List recently closed tickets (default 20, by mtime)
-  prune [options]          Delete old closed tickets
+  prune [options]          Delete old closed tickets (dry-run by default)
     --days=N               Only prune tickets closed > N days ago [default: 7]
     --all                  Prune all eligible closed tickets
-    --dry-run              Preview what would be deleted
+    -f, --force            Actually delete (default is dry-run preview)
   show <id>                Display ticket
   edit <id>                Open ticket in $EDITOR
   add-note <id> [text]     Append timestamped note (or pipe via stdin)
