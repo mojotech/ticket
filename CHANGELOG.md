@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+
 - `prune` command to delete old closed tickets
   - `--days=N` to set age threshold (default: 7 days)
   - `--all` to prune regardless of age
@@ -11,13 +12,8 @@
 - Dependency protection: closed tickets referenced by open/in-progress tickets are never pruned
 
 ### Fixed
-- Recursive dependency protection in `prune` command (was only direct)
-- BSD sed compatibility in `update_yaml_field` (was GNU-only)
-- O(N^2) performance in `prune` dependency lookup by using awk associative arrays
 
-### Changed
-- `prune` command now prefixes dry-run output with `[DRY-RUN]` for clarity
-- `prune` command now considers `done` status as eligible for pruning
+- BSD sed compatibility in `update_yaml_field` (was GNU-only)
 - `update_yaml_field` now uses more robust first-line substitution for new fields
 
 ## [0.2.3] - 2026-01-14
