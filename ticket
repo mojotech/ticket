@@ -227,7 +227,7 @@ cmd_status() {
     else
         # Clear closed_at when moving to any non-closed status
         if _grep -q "^closed_at:" "$file"; then
-            _sed_i "$file" '/^closed_at:/d'
+            _sed_i "$file" '1,/^---$/{ /^closed_at:/d; }'
         fi
     fi
 
