@@ -7,7 +7,7 @@
 - `prune` command to delete old closed tickets
   - `--days=N` to set age threshold (default: 7 days)
   - `--all` to prune regardless of age
-  - `--dry-run` to preview without deleting
+  - `-f/--force` to actually delete (dry-run preview by default)
 - `closed_at` timestamp field set when tickets are closed
 - Dependency protection: closed tickets referenced by open/in-progress tickets are never pruned
 
