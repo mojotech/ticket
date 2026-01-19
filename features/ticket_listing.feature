@@ -14,6 +14,12 @@ Feature: Ticket Listing
     And the output should contain "list-0001"
     And the output should contain "list-0002"
 
+  Scenario: List command alias works
+    Given a ticket exists with ID "list-0001" and title "First ticket"
+    When I run "ticket list"
+    Then the command should succeed
+    And the output should contain "list-0001"
+
   Scenario: List shows ticket format correctly
     Given a ticket exists with ID "list-0001" and title "My ticket"
     When I run "ticket ls"

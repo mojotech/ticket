@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `list` command alias for `ls`
+
 ## [0.3.0] - 2026-01-18
 
 ### Added
