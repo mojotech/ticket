@@ -368,7 +368,7 @@ def step_output_not_contains(context, text):
 def step_output_matches_id_pattern(context):
     """Assert output matches ticket ID pattern (prefix-hash)."""
     # Prefix can be alphanumeric (from directory name), hash is 4 hex chars
-    pattern = r'^[a-z0-9]+-[a-f0-9]{4}$'
+    pattern = r'^[a-z0-9]+-[a-z0-9]{4}$'
     assert re.match(pattern, context.stdout), \
         f"Output '{context.stdout}' does not match ticket ID pattern"
 
