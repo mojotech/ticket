@@ -7,7 +7,7 @@
 - `super` command to bypass plugins and run built-in commands directly
 - `TICKETS_DIR` and `TK_SCRIPT` environment variables exported for plugins
 - `help` command lists installed plugins with descriptions
-- Plugin metadata convention: `# tk-plugin: description` comment
+- Plugin metadata: `# tk-plugin:` comment for scripts, `--tk-describe` flag for binaries
 
 ## [0.3.2] - 2026-02-03
 

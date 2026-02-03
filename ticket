@@ -1432,9 +1432,10 @@ cmd_migrate_beads() {
 }
 
 # List installed plugins with descriptions
-# Plugins declare themselves with: # tk-plugin: description
+# Scripts: # tk-plugin: description (comment in first 10 lines)
+# Binaries: --tk-describe flag outputs description
 _list_plugins() {
-    local seen="" plugin cmd desc path
+    local seen="" plugin cmd desc path out
 
     for prefix in tk ticket; do
         while IFS= read -r plugin; do
@@ -1448,8 +1449,17 @@ _list_plugins() {
             path=$(command -v "$plugin" 2>/dev/null) || continue
             [[ -f "$path" ]] || continue
 
-            # Extract description from first 10 lines
+            desc=""
+            # Try comment first (fast, no execution)
             desc=$(head -10 "$path" 2>/dev/null | grep -m1 '^# tk-plugin:' | sed 's/^# tk-plugin: *//')
+
+            # Fall back to --tk-describe for binaries (requires timeout command)
+            if [[ -z "$desc" ]] && command -v timeout &>/dev/null; then
+                if out=$(timeout 1 "$path" --tk-describe 2>/dev/null); then
+                    out=$(printf '%s' "$out" | head -1)
+                    [[ "$out" == "tk-plugin:"* ]] && desc="${out#tk-plugin: }"
+                fi
+            fi
 
             printf "  %-22s %s\n" "$cmd" "${desc:-(no description)}"
         done < <(compgen -c "${prefix}-" 2>/dev/null | sort -u)
@@ -1513,7 +1523,7 @@ EOF
 Use 'super' to bypass plugins. Plugins receive TICKETS_DIR and TK_SCRIPT
 env vars; use '\$TK_SCRIPT super <cmd>' to call built-ins.
 
-Declare plugin description with: # tk-plugin: description text
+Plugin descriptions: comment '# tk-plugin: text' or --tk-describe flag
 
 Tickets stored as markdown files in .tickets/
 Supports partial ID matching (e.g., '$cmd show 5c4' matches 'nw-5c46')

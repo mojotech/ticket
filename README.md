@@ -110,6 +110,10 @@ tk hello        # runs tk-hello
 tk help         # lists it under "Plugins"
 ```
 
+**Plugin descriptions** (shown in `tk help`):
+- Scripts: comment `# tk-plugin: description` in first 10 lines
+- Binaries: `--tk-describe` flag outputs `tk-plugin: description`
+
 **Plugin environment variables:**
 - `TICKETS_DIR` - path to the .tickets directory (may be empty)
 - `TK_SCRIPT` - absolute path to the tk script
