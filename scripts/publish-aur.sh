@@ -144,8 +144,7 @@ main() {
     update_pkgbuild "$REPO_ROOT/pkg/aur/ticket-core/PKGBUILD" "$VERSION" "$SHA256"
     push_to_aur "ticket-core" "$REPO_ROOT/pkg/aur/ticket-core" || failed+=("ticket-core")
 
-    # 2. Publish individual plugins
-    local plugin_deps=()
+    # 2. Publish individual plugins (all plugins in plugins/ directory)
     if [[ -d "$REPO_ROOT/plugins" ]]; then
         for plugin_file in "$REPO_ROOT"/plugins/ticket-*; do
             [[ -f "$plugin_file" ]] || continue
@@ -157,19 +156,26 @@ main() {
             local plugin_pkg_dir="/tmp/pkg-ticket-$plugin_name"
             generate_plugin_pkgbuild "$plugin_name" "$plugin_file" "$plugin_pkg_dir"
             push_to_aur "ticket-$plugin_name" "$plugin_pkg_dir" || failed+=("ticket-$plugin_name")
-
-            plugin_deps+=("'ticket-$plugin_name'")
         done
     fi
 
-    # 3. Update and publish ticket-extras with plugin dependencies
+    # 3. Update and publish ticket-extras with curated plugin list
     echo ""
     echo "=== ticket-extras ==="
     local extras_pkgbuild="$REPO_ROOT/pkg/aur/ticket-extras/PKGBUILD"
     update_pkgbuild "$extras_pkgbuild" "$VERSION" "SKIP"
-    # Update depends line with discovered plugins
-    if [[ ${#plugin_deps[@]} -gt 0 ]]; then
-        local deps_str=$(IFS=' '; echo "${plugin_deps[*]}")
+
+    # Read curated list from pkg/extras.txt
+    local extras_deps=()
+    if [[ -f "$REPO_ROOT/pkg/extras.txt" ]]; then
+        while IFS= read -r line; do
+            [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+            extras_deps+=("'ticket-$line'")
+        done < "$REPO_ROOT/pkg/extras.txt"
+    fi
+
+    if [[ ${#extras_deps[@]} -gt 0 ]]; then
+        local deps_str=$(IFS=' '; echo "${extras_deps[*]}")
         sed -i "s|^depends=.*|depends=($deps_str)|" "$extras_pkgbuild"
     fi
     push_to_aur "ticket-extras" "$REPO_ROOT/pkg/aur/ticket-extras" || failed+=("ticket-extras")

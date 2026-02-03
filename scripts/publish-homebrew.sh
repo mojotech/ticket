@@ -85,24 +85,25 @@ class TicketCore < Formula
 end
 EOF
 
-    # 2. Generate plugin formulas
-    local plugin_deps=()
+    # 2. Generate plugin formulas (all plugins in plugins/ directory)
     if [[ -d "$REPO_ROOT/plugins" ]]; then
         for plugin_file in "$REPO_ROOT"/plugins/ticket-*; do
             [[ -f "$plugin_file" ]] || continue
             local plugin_name="${plugin_file##*/ticket-}"
             echo "Generating formula for ticket-$plugin_name..."
             generate_plugin_formula "$plugin_name" "$plugin_file" "$formula_dir"
-            plugin_deps+=("\"ticket-$plugin_name\"")
         done
     fi
 
-    # 3. Update ticket-extras formula (meta-formula)
+    # 3. Update ticket-extras formula with curated plugin list
     echo "Updating ticket-extras..."
     local deps_ruby=""
-    for dep in "${plugin_deps[@]:-}"; do
-        deps_ruby+="  depends_on $dep"$'\n'
-    done
+    if [[ -f "$REPO_ROOT/pkg/extras.txt" ]]; then
+        while IFS= read -r line; do
+            [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+            deps_ruby+="  depends_on \"ticket-$line\""$'\n'
+        done < "$REPO_ROOT/pkg/extras.txt"
+    fi
     cat > "$formula_dir/ticket-extras.rb" << EOF
 class TicketExtras < Formula
   desc "All official plugins for ticket"
