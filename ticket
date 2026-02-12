@@ -8,24 +8,30 @@ VERSION="0.3.0"
 
 # Find .tickets directory by walking parent directories
 find_tickets_dir() {
-    # Explicit env var takes priority
-    [[ -n "${TICKETS_DIR:-}" ]] && { echo "$TICKETS_DIR"; return 0; }
+  # Explicit env var takes priority
+  [[ -n "${TICKETS_DIR:-}" ]] && {
+    echo "$TICKETS_DIR"
+    return 0
+  }
 
-    # Walk parents looking for .tickets
-    local dir="$PWD"
-    while [[ "$dir" != "/" ]]; do
-        if [[ -d "$dir/.tickets" ]]; then
-            echo "$dir/.tickets"
-            return 0
-        fi
-        dir=$(dirname "$dir")
-    done
+  # Walk parents looking for .tickets
+  local dir="$PWD"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -d "$dir/.tickets" ]]; then
+      echo "$dir/.tickets"
+      return 0
+    fi
+    dir=$(dirname "$dir")
+  done
 
-    # Check root too
-    [[ -d "/.tickets" ]] && { echo "/.tickets"; return 0; }
+  # Check root too
+  [[ -d "/.tickets" ]] && {
+    echo "/.tickets"
+    return 0
+  }
 
-    # Not found
-    return 1
+  # Not found
+  return 1
 }
 
 # Commands that can create .tickets if not found
@@ -33,305 +39,347 @@ WRITE_COMMANDS="create migrate-beads"
 
 # Initialize TICKETS_DIR based on command type
 init_tickets_dir() {
-    local cmd="$1"
-    local is_write_cmd=0
-    [[ " $WRITE_COMMANDS " == *" $cmd "* ]] && is_write_cmd=1
+  local cmd="$1"
+  local is_write_cmd=0
+  [[ " $WRITE_COMMANDS " == *" $cmd "* ]] && is_write_cmd=1
 
-    if TICKETS_DIR=$(find_tickets_dir); then
-        # For read commands, verify the directory exists
-        if [[ $is_write_cmd -eq 0 ]] && [[ ! -d "$TICKETS_DIR" ]]; then
-            echo "Error: tickets directory '$TICKETS_DIR' does not exist" >&2
-            return 1
-        fi
-        return 0
+  if TICKETS_DIR=$(find_tickets_dir); then
+    # For read commands, verify the directory exists
+    if [[ $is_write_cmd -eq 0 ]] && [[ ! -d "$TICKETS_DIR" ]]; then
+      echo "Error: tickets directory '$TICKETS_DIR' does not exist" >&2
+      return 1
     fi
+    return 0
+  fi
 
-    # Not found - write commands can initialize in current directory
-    if [[ $is_write_cmd -eq 1 ]]; then
-        TICKETS_DIR=".tickets"
-        return 0
-    fi
+  # Not found - write commands can initialize in current directory
+  if [[ $is_write_cmd -eq 1 ]]; then
+    TICKETS_DIR=".tickets"
+    return 0
+  fi
 
-    echo "Error: no .tickets directory found (searched parent directories)" >&2
-    echo "Run 'tk create' to initialize, or set TICKETS_DIR env var" >&2
-    return 1
+  echo "Error: no .tickets directory found (searched parent directories)" >&2
+  echo "Run 'tk create' to initialize, or set TICKETS_DIR env var" >&2
+  return 1
 }
 
 TICKET_PAGER="${TICKET_PAGER:-${PAGER:-}}"
 
 # Prefer ripgrep if available, fall back to grep
 if command -v rg &>/dev/null; then
-    _grep() { rg "$@"; }
+  _grep() { rg "$@"; }
 else
-    _grep() { grep "$@"; }
+  _grep() { grep "$@"; }
 fi
 
 # Portable ISO date (GNU date supports -Iseconds, BSD date does not)
 _iso_date() {
-    date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%SZ
 }
 
 # Portable sed -i (BSD requires -i '', GNU uses -i)
 _sed_i() {
-    local file="$1"
-    shift
-    local tmp="${file}.tmp.$$"
-    sed "$@" "$file" > "$tmp" && mv "$tmp" "$file"
+  local file="$1"
+  shift
+  local tmp="${file}.tmp.$$"
+  sed "$@" "$file" >"$tmp" && mv "$tmp" "$file"
 }
 
 # Generate ticket ID from directory name + random string
 generate_id() {
-    local dir_name
-    dir_name=$(basename "$(pwd)")
+  local dir_name
+  dir_name=$(basename "$(pwd)")
 
-    # Extract first letter of each hyphenated/underscored segment
-    local prefix
-    prefix=$(echo "$dir_name" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) printf substr($i,1,1)}')
+  # Extract first letter of each hyphenated/underscored segment
+  local prefix
+  prefix=$(echo "$dir_name" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) printf substr($i,1,1)}')
 
-    # Fallback to first 3 chars if single segment (prefix too short)
-    [[ ${#prefix} -lt 2 ]] && prefix="${dir_name:0:3}"
+  # Fallback to first 3 chars if single segment (prefix too short)
+  [[ ${#prefix} -lt 2 ]] && prefix="${dir_name:0:3}"
 
-    # 4-char random lower case alphanumeric string
-    local hash
-    hash=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 4)
+  # 4-char random lower case alphanumeric string
+  local hash
+  hash=$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 4)
 
-    echo "${prefix}-${hash}"
+  echo "${prefix}-${hash}"
 }
 
 # Ensure tickets directory exists
 ensure_dir() {
-    mkdir -p "$TICKETS_DIR"
+  mkdir -p "$TICKETS_DIR"
 }
 
 # Get ticket file path (supports partial ID matching)
 ticket_path() {
-    local id="$1"
-    # Trim leading/trailing whitespace (handles Claude/agent quirks)
-    read -r id <<< "$id"
-    local exact="$TICKETS_DIR/${id}.md"
+  local id="$1"
+  # Trim leading/trailing whitespace (handles Claude/agent quirks)
+  read -r id <<<"$id"
+  local exact="$TICKETS_DIR/${id}.md"
 
-    if [[ -f "$exact" ]]; then
-        echo "$exact"
-        return 0
-    fi
+  if [[ -f "$exact" ]]; then
+    echo "$exact"
+    return 0
+  fi
 
-    # Try partial match (anywhere in filename)
-    local matches
-    matches=$(find "$TICKETS_DIR" -maxdepth 1 -name "*${id}*.md" 2>/dev/null | head -2)
-    local count
-    count=$(echo "$matches" | _grep -c . || true)
+  # Try partial match (anywhere in filename)
+  local matches
+  matches=$(find "$TICKETS_DIR" -maxdepth 1 -name "*${id}*.md" 2>/dev/null | head -2)
+  local count
+  count=$(echo "$matches" | _grep -c . || true)
 
-    if [[ "$count" -eq 1 ]]; then
-        echo "$matches"
-        return 0
-    elif [[ "$count" -gt 1 ]]; then
-        echo "Error: ambiguous ID '$id' matches multiple tickets" >&2
-        return 1
-    else
-        echo "Error: ticket '$id' not found" >&2
-        return 1
-    fi
+  if [[ "$count" -eq 1 ]]; then
+    echo "$matches"
+    return 0
+  elif [[ "$count" -gt 1 ]]; then
+    echo "Error: ambiguous ID '$id' matches multiple tickets" >&2
+    return 1
+  else
+    echo "Error: ticket '$id' not found" >&2
+    return 1
+  fi
 }
 
 # Extract YAML field value
 yaml_field() {
-    local file="$1"
-    local field="$2"
-    sed -n '/^---$/,/^---$/p' "$file" | _grep "^${field}:" | sed "s/^${field}: *//"
+  local file="$1"
+  local field="$2"
+  sed -n '/^---$/,/^---$/p' "$file" | _grep "^${field}:" | sed "s/^${field}: *//"
 }
 
 # Update YAML field
 update_yaml_field() {
-    local file="$1"
-    local field="$2"
-    local value="$3"
+  local file="$1"
+  local field="$2"
+  local value="$3"
 
-    if _grep -q "^${field}:" "$file"; then
-        _sed_i "$file" "s/^${field}:.*/${field}: ${value}/"
-    else
-        # Insert after first --- (beginning of frontmatter)
-        _sed_i "$file" "1s/^---$/---\\
+  if _grep -q "^${field}:" "$file"; then
+    _sed_i "$file" "s/^${field}:.*/${field}: ${value}/"
+  else
+    # Insert after first --- (beginning of frontmatter)
+    _sed_i "$file" "1s/^---$/---\\
 ${field}: ${value}/"
-    fi
+  fi
 }
 
 cmd_create() {
-    ensure_dir
+  ensure_dir
 
-    local title="" description="" design="" acceptance=""
-    local priority=2 issue_type="task" assignee="" external_ref="" parent="" tags=""
-    local initial_dep=""
+  local title="" description="" design="" acceptance=""
+  local priority=2 issue_type="task" assignee="" external_ref="" parent="" tags=""
+  local initial_dep=""
 
-    # Default assignee to git user.name if available
-    assignee=$(git config user.name 2>/dev/null || true)
+  # Default assignee to git user.name if available
+  assignee=$(git config user.name 2>/dev/null || true)
 
-    # Parse args
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -d|--description) description="$2"; shift 2 ;;
-            --design) design="$2"; shift 2 ;;
-            --acceptance) acceptance="$2"; shift 2 ;;
-            -p|--priority) priority="$2"; shift 2 ;;
-            -t|--type) issue_type="$2"; shift 2 ;;
-            -a|--assignee) assignee="$2"; shift 2 ;;
-            --external-ref) external_ref="$2"; shift 2 ;;
-            --parent) parent="$2"; shift 2 ;;
-            --tags) tags="$2"; shift 2 ;;
-            --dep) initial_dep="$2"; shift 2 ;;
-            -*) echo "Unknown option: $1" >&2; return 1 ;;
-            *) title="$1"; shift ;;
-        esac
-    done
+  # Parse args
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -d | --description)
+      description="$2"
+      shift 2
+      ;;
+    --design)
+      design="$2"
+      shift 2
+      ;;
+    --acceptance)
+      acceptance="$2"
+      shift 2
+      ;;
+    -p | --priority)
+      priority="$2"
+      shift 2
+      ;;
+    -t | --type)
+      issue_type="$2"
+      shift 2
+      ;;
+    -a | --assignee)
+      assignee="$2"
+      shift 2
+      ;;
+    --external-ref)
+      external_ref="$2"
+      shift 2
+      ;;
+    --parent)
+      parent="$2"
+      shift 2
+      ;;
+    --tags)
+      tags="$2"
+      shift 2
+      ;;
+    --dep)
+      initial_dep="$2"
+      shift 2
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      return 1
+      ;;
+    *)
+      title="$1"
+      shift
+      ;;
+    esac
+  done
 
-    # Validate and resolve parent if specified
-    if [[ -n "$parent" ]]; then
-        local parent_file
-        parent_file=$(ticket_path "$parent") || return 1
-        parent=$(basename "$parent_file" .md)
+  # Validate and resolve parent if specified
+  if [[ -n "$parent" ]]; then
+    local parent_file
+    parent_file=$(ticket_path "$parent") || return 1
+    parent=$(basename "$parent_file" .md)
+  fi
+
+  title="${title:-Untitled}"
+  local id
+  id=$(generate_id)
+  local file="$TICKETS_DIR/${id}.md"
+  local now
+  now=$(_iso_date)
+
+  # Resolve initial dependency if provided
+  local deps_value="[]"
+  if [[ -n "$initial_dep" ]]; then
+    local dep_file
+    dep_file=$(ticket_path "$initial_dep") || return 1
+    local dep_id
+    dep_id=$(yaml_field "$dep_file" "id")
+    deps_value="[$dep_id]"
+  fi
+
+  {
+    echo "---"
+    echo "id: $id"
+    echo "status: open"
+    echo "deps: $deps_value"
+    echo "links: []"
+    echo "created: $now"
+    echo "type: $issue_type"
+    echo "priority: $priority"
+    [[ -n "$assignee" ]] && echo "assignee: $assignee"
+    [[ -n "$external_ref" ]] && echo "external-ref: $external_ref"
+    [[ -n "$parent" ]] && echo "parent: $parent"
+    if [[ -n "$tags" ]]; then
+      echo "tags: [${tags//,/, }]"
     fi
-
-    title="${title:-Untitled}"
-    local id
-    id=$(generate_id)
-    local file="$TICKETS_DIR/${id}.md"
-    local now
-    now=$(_iso_date)
-
-    # Resolve initial dependency if provided
-    local deps_value="[]"
-    if [[ -n "$initial_dep" ]]; then
-        local dep_file
-        dep_file=$(ticket_path "$initial_dep") || return 1
-        local dep_id
-        dep_id=$(yaml_field "$dep_file" "id")
-        deps_value="[$dep_id]"
+    echo "---"
+    echo "# $title"
+    echo ""
+    if [[ -n "$description" ]]; then
+      echo "$description"
+      echo ""
     fi
+    if [[ -n "$design" ]]; then
+      echo "## Design"
+      echo ""
+      echo "$design"
+      echo ""
+    fi
+    if [[ -n "$acceptance" ]]; then
+      echo "## Acceptance Criteria"
+      echo ""
+      echo "$acceptance"
+      echo ""
+    fi
+  } >"$file"
 
-    {
-        echo "---"
-        echo "id: $id"
-        echo "status: open"
-        echo "deps: $deps_value"
-        echo "links: []"
-        echo "created: $now"
-        echo "type: $issue_type"
-        echo "priority: $priority"
-        [[ -n "$assignee" ]] && echo "assignee: $assignee"
-        [[ -n "$external_ref" ]] && echo "external-ref: $external_ref"
-        [[ -n "$parent" ]] && echo "parent: $parent"
-        if [[ -n "$tags" ]]; then
-            echo "tags: [${tags//,/, }]"
-        fi
-        echo "---"
-        echo "# $title"
-        echo ""
-        if [[ -n "$description" ]]; then
-            echo "$description"
-            echo ""
-        fi
-        if [[ -n "$design" ]]; then
-            echo "## Design"
-            echo ""
-            echo "$design"
-            echo ""
-        fi
-        if [[ -n "$acceptance" ]]; then
-            echo "## Acceptance Criteria"
-            echo ""
-            echo "$acceptance"
-            echo ""
-        fi
-    } > "$file"
-
-    echo "$id"
+  echo "$id"
 }
 
 # Valid statuses
 VALID_STATUSES="open in_progress closed"
 
 validate_status() {
-    local status="$1"
-    for valid in $VALID_STATUSES; do
-        [[ "$status" == "$valid" ]] && return 0
-    done
-    echo "Error: invalid status '$status'. Must be one of: $VALID_STATUSES" >&2
-    return 1
+  local status="$1"
+  for valid in $VALID_STATUSES; do
+    [[ "$status" == "$valid" ]] && return 0
+  done
+  echo "Error: invalid status '$status'. Must be one of: $VALID_STATUSES" >&2
+  return 1
 }
 
 cmd_status() {
-    if [[ $# -lt 2 ]]; then
-        echo "Usage: $(basename "$0") status <id> <status>" >&2
-        echo "Valid statuses: $VALID_STATUSES" >&2
-        return 1
+  if [[ $# -lt 2 ]]; then
+    echo "Usage: $(basename "$0") status <id> <status>" >&2
+    echo "Valid statuses: $VALID_STATUSES" >&2
+    return 1
+  fi
+
+  local id="$1"
+  local status="$2"
+
+  validate_status "$status" || return 1
+
+  local file
+  file=$(ticket_path "$id") || return 1
+
+  update_yaml_field "$file" "status" "$status"
+
+  # Manage closed_at field based on status
+  if [[ "$status" == "closed" ]]; then
+    # Set closed_at only if not already present (first close wins)
+    if ! _grep -q "^closed_at:" "$file"; then
+      update_yaml_field "$file" "closed_at" "$(_iso_date)"
     fi
-
-    local id="$1"
-    local status="$2"
-
-    validate_status "$status" || return 1
-
-    local file
-    file=$(ticket_path "$id") || return 1
-
-    update_yaml_field "$file" "status" "$status"
-
-    # Manage closed_at field based on status
-    if [[ "$status" == "closed" ]]; then
-        # Set closed_at only if not already present (first close wins)
-        if ! _grep -q "^closed_at:" "$file"; then
-            update_yaml_field "$file" "closed_at" "$(_iso_date)"
-        fi
-    else
-        # Clear closed_at when moving to any non-closed status
-        if _grep -q "^closed_at:" "$file"; then
-            _sed_i "$file" '1,/^---$/{ /^closed_at:/d; }'
-        fi
+  else
+    # Clear closed_at when moving to any non-closed status
+    if _grep -q "^closed_at:" "$file"; then
+      _sed_i "$file" '1,/^---$/{ /^closed_at:/d; }'
     fi
+  fi
 
-    echo "Updated $(basename "$file" .md) -> $status"
+  echo "Updated $(basename "$file" .md) -> $status"
 }
 
 cmd_start() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: $(basename "$0") start <id>" >&2
-        return 1
-    fi
-    cmd_status "$1" "in_progress"
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: $(basename "$0") start <id>" >&2
+    return 1
+  fi
+  cmd_status "$1" "in_progress"
 }
 
 cmd_close() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: $(basename "$0") close <id>" >&2
-        return 1
-    fi
-    cmd_status "$1" "closed"
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: $(basename "$0") close <id>" >&2
+    return 1
+  fi
+  cmd_status "$1" "closed"
 }
 
 cmd_reopen() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: $(basename "$0") reopen <id>" >&2
-        return 1
-    fi
-    cmd_status "$1" "open"
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: $(basename "$0") reopen <id>" >&2
+    return 1
+  fi
+  cmd_status "$1" "open"
 }
 
 cmd_dep_tree() {
-    local full_mode=0
-    local root_id=""
+  local full_mode=0
+  local root_id=""
 
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --full) full_mode=1; shift ;;
-            *) root_id="$1"; shift ;;
-        esac
-    done
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --full)
+      full_mode=1
+      shift
+      ;;
+    *)
+      root_id="$1"
+      shift
+      ;;
+    esac
+  done
 
-    if [[ -z "$root_id" ]]; then
-        echo "Usage: ticket dep tree [--full] <id>" >&2
-        return 1
-    fi
+  if [[ -z "$root_id" ]]; then
+    echo "Usage: ticket dep tree [--full] <id>" >&2
+    return 1
+  fi
 
-    awk -v root_pattern="$root_id" -v full_mode="$full_mode" '
+  awk -v root_pattern="$root_id" -v full_mode="$full_mode" '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) store()
@@ -515,7 +563,7 @@ cmd_dep_tree() {
 }
 
 cmd_dep_cycle() {
-    awk '
+  awk '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) store()
@@ -626,71 +674,86 @@ cmd_dep_cycle() {
 }
 
 cmd_dep() {
-    # Handle subcommands
-    if [[ "${1:-}" == "tree" ]]; then
-        shift
-        cmd_dep_tree "$@"
-        return
-    fi
-    if [[ "${1:-}" == "cycle" ]]; then
-        shift
-        cmd_dep_cycle "$@"
-        return
-    fi
+  # Handle subcommands
+  if [[ "${1:-}" == "tree" ]]; then
+    shift
+    cmd_dep_tree "$@"
+    return
+  fi
+  if [[ "${1:-}" == "cycle" ]]; then
+    shift
+    cmd_dep_cycle "$@"
+    return
+  fi
 
-    if [[ $# -lt 2 ]]; then
-        echo "Usage: ticket dep <id> <dependency-id>" >&2
-        echo "       ticket dep tree <id>  - show dependency tree" >&2
-        echo "       ticket dep cycle      - find dependency cycles" >&2
-        return 1
-    fi
+  if [[ $# -lt 2 ]]; then
+    echo "Usage: ticket dep <id> <dependency-id>" >&2
+    echo "       ticket dep tree <id>  - show dependency tree" >&2
+    echo "       ticket dep cycle      - find dependency cycles" >&2
+    return 1
+  fi
 
-    local id="$1"
-    local dep_id="$2"
-    local file
-    file=$(ticket_path "$id") || return 1
+  local id="$1"
+  local dep_id="$2"
+  local file
+  file=$(ticket_path "$id") || return 1
 
-    # Verify dependency exists and resolve to full ID
-    local dep_file
-    dep_file=$(ticket_path "$dep_id") || return 1
-    dep_id=$(basename "$dep_file" .md)
+  # Verify dependency exists and resolve to full ID
+  local dep_file
+  dep_file=$(ticket_path "$dep_id") || return 1
+  dep_id=$(basename "$dep_file" .md)
 
-    # Get current deps
-    local current_deps
-    current_deps=$(yaml_field "$file" "deps")
+  # Get current deps
+  local current_deps
+  current_deps=$(yaml_field "$file" "deps")
 
-    # Add dep if not already present
-    if echo "$current_deps" | _grep -q "$dep_id"; then
-        echo "Dependency already exists"
-        return 0
-    fi
+  # Add dep if not already present
+  if echo "$current_deps" | _grep -q "$dep_id"; then
+    echo "Dependency already exists"
+    return 0
+  fi
 
-    # Update deps array
-    if [[ "$current_deps" == "[]" ]]; then
-        update_yaml_field "$file" "deps" "[$dep_id]"
-    else
-        local new_deps
-        new_deps=${current_deps//s\/$dep_id/]/}
-        update_yaml_field "$file" "deps" "$new_deps"
-    fi
+  # Update deps array
+  if [[ "$current_deps" == "[]" ]]; then
+    update_yaml_field "$file" "deps" "[$dep_id]"
+  else
+    local new_deps
+    new_deps=${current_deps//s\/$dep_id/]/}
+    update_yaml_field "$file" "deps" "$new_deps"
+  fi
 
-    echo "Added dependency: $(basename "$file" .md) -> $dep_id"
+  echo "Added dependency: $(basename "$file" .md) -> $dep_id"
 }
 
 cmd_ls() {
-    local status_filter="" assignee_filter="" tag_filter=""
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --status=*) status_filter="${1#--status=}"; shift ;;
-            -a) assignee_filter="$2"; shift 2 ;;
-            --assignee=*) assignee_filter="${1#--assignee=}"; shift ;;
-            -T) tag_filter="$2"; shift 2 ;;
-            --tag=*) tag_filter="${1#--tag=}"; shift ;;
-            *) shift ;;
-        esac
-    done
+  local status_filter="" assignee_filter="" tag_filter=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --status=*)
+      status_filter="${1#--status=}"
+      shift
+      ;;
+    -a)
+      assignee_filter="$2"
+      shift 2
+      ;;
+    --assignee=*)
+      assignee_filter="${1#--assignee=}"
+      shift
+      ;;
+    -T)
+      tag_filter="$2"
+      shift 2
+      ;;
+    --tag=*)
+      tag_filter="${1#--tag=}"
+      shift
+      ;;
+    *) shift ;;
+    esac
+  done
 
-    awk -v status_filter="$status_filter" -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
+  awk -v status_filter="$status_filter" -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) emit()
@@ -725,18 +788,30 @@ cmd_ls() {
 }
 
 cmd_ready() {
-    local assignee_filter="" tag_filter=""
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -a) assignee_filter="$2"; shift 2 ;;
-            --assignee=*) assignee_filter="${1#--assignee=}"; shift ;;
-            -T) tag_filter="$2"; shift 2 ;;
-            --tag=*) tag_filter="${1#--tag=}"; shift ;;
-            *) shift ;;
-        esac
-    done
+  local assignee_filter="" tag_filter=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -a)
+      assignee_filter="$2"
+      shift 2
+      ;;
+    --assignee=*)
+      assignee_filter="${1#--assignee=}"
+      shift
+      ;;
+    -T)
+      tag_filter="$2"
+      shift 2
+      ;;
+    --tag=*)
+      tag_filter="${1#--tag=}"
+      shift
+      ;;
+    *) shift ;;
+    esac
+  done
 
-    awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
+  awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) store()
@@ -815,24 +890,39 @@ cmd_ready() {
 }
 
 cmd_closed() {
-    local limit=20 assignee_filter="" tag_filter=""
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --limit=*) limit="${1#--limit=}"; shift ;;
-            -a) assignee_filter="$2"; shift 2 ;;
-            --assignee=*) assignee_filter="${1#--assignee=}"; shift ;;
-            -T) tag_filter="$2"; shift 2 ;;
-            --tag=*) tag_filter="${1#--tag=}"; shift ;;
-            *) shift ;;
-        esac
-    done
+  local limit=20 assignee_filter="" tag_filter=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --limit=*)
+      limit="${1#--limit=}"
+      shift
+      ;;
+    -a)
+      assignee_filter="$2"
+      shift 2
+      ;;
+    --assignee=*)
+      assignee_filter="${1#--assignee=}"
+      shift
+      ;;
+    -T)
+      tag_filter="$2"
+      shift 2
+      ;;
+    --tag=*)
+      tag_filter="${1#--tag=}"
+      shift
+      ;;
+    *) shift ;;
+    esac
+  done
 
-    # List files by mtime (most recent first), filter closed, limit output
-    local files
-    files=$(find "$TICKETS_DIR" -name "*.md" -type f -printf "%T+ %p\n" 2>/dev/null | sort -nr | head -n 100 | cut -d " " -f 2)
-    [[ -z "$files" ]] && return 0
-    # shellcheck disable=SC2016
-    echo "$files" | xargs awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
+  # List files by mtime (most recent first), filter closed, limit output
+  local files
+  files=$(find "$TICKETS_DIR" -name "*.md" -type f -printf "%T+ %p\n" 2>/dev/null | sort -nr | head -n 100 | cut -d " " -f 2)
+  [[ -z "$files" ]] && return 0
+  # shellcheck disable=SC2016
+  echo "$files" | xargs awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) emit()
@@ -863,18 +953,30 @@ cmd_closed() {
 }
 
 cmd_blocked() {
-    local assignee_filter="" tag_filter=""
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -a) assignee_filter="$2"; shift 2 ;;
-            --assignee=*) assignee_filter="${1#--assignee=}"; shift ;;
-            -T) tag_filter="$2"; shift 2 ;;
-            --tag=*) tag_filter="${1#--tag=}"; shift ;;
-            *) shift ;;
-        esac
-    done
+  local assignee_filter="" tag_filter=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -a)
+      assignee_filter="$2"
+      shift 2
+      ;;
+    --assignee=*)
+      assignee_filter="${1#--assignee=}"
+      shift
+      ;;
+    -T)
+      tag_filter="$2"
+      shift 2
+      ;;
+    --tag=*)
+      tag_filter="${1#--tag=}"
+      shift
+      ;;
+    *) shift ;;
+    esac
+  done
 
-    awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
+  awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) store()
@@ -962,90 +1064,90 @@ cmd_blocked() {
 }
 
 cmd_undep() {
-    if [[ $# -lt 2 ]]; then
-        echo "Usage: ticket undep <id> <dependency-id>" >&2
-        return 1
-    fi
+  if [[ $# -lt 2 ]]; then
+    echo "Usage: ticket undep <id> <dependency-id>" >&2
+    return 1
+  fi
 
-    local id="$1"
-    local dep_id="$2"
-    local file
-    file=$(ticket_path "$id") || return 1
+  local id="$1"
+  local dep_id="$2"
+  local file
+  file=$(ticket_path "$id") || return 1
 
-    # Resolve dep_id to full ID
-    local dep_file
-    dep_file=$(ticket_path "$dep_id") || return 1
-    dep_id=$(basename "$dep_file" .md)
+  # Resolve dep_id to full ID
+  local dep_file
+  dep_file=$(ticket_path "$dep_id") || return 1
+  dep_id=$(basename "$dep_file" .md)
 
-    local current_deps
-    current_deps=$(yaml_field "$file" "deps")
+  local current_deps
+  current_deps=$(yaml_field "$file" "deps")
 
-    if ! echo "$current_deps" | _grep -q "$dep_id"; then
-        echo "Dependency not found"
-        return 1
-    fi
+  if ! echo "$current_deps" | _grep -q "$dep_id"; then
+    echo "Dependency not found"
+    return 1
+  fi
 
-    # Remove dep from array
-    local new_deps
-    new_deps=$(echo "$current_deps" | sed "s/, *$dep_id//g; s/$dep_id, *//g; s/$dep_id//g")
-    # Clean up empty array case
-    [[ "$new_deps" == "[]" || "$new_deps" == "[, ]" || "$new_deps" == "[ ]" ]] && new_deps="[]"
+  # Remove dep from array
+  local new_deps
+  new_deps=$(echo "$current_deps" | sed "s/, *$dep_id//g; s/$dep_id, *//g; s/$dep_id//g")
+  # Clean up empty array case
+  [[ "$new_deps" == "[]" || "$new_deps" == "[, ]" || "$new_deps" == "[ ]" ]] && new_deps="[]"
 
-    update_yaml_field "$file" "deps" "$new_deps"
-    echo "Removed dependency: $(basename "$file" .md) -/-> $dep_id"
+  update_yaml_field "$file" "deps" "$new_deps"
+  echo "Removed dependency: $(basename "$file" .md) -/-> $dep_id"
 }
 
 add_link_to_file() {
-    local file="$1"
-    local target_id="$2"
+  local file="$1"
+  local target_id="$2"
 
-    local current_links
-    current_links=$(yaml_field "$file" "links" || true)
-    [[ -z "$current_links" ]] && current_links="[]"
+  local current_links
+  current_links=$(yaml_field "$file" "links" || true)
+  [[ -z "$current_links" ]] && current_links="[]"
 
-    # Skip if already present
-    if echo "$current_links" | _grep -q "$target_id"; then
-        return 0
-    fi
+  # Skip if already present
+  if echo "$current_links" | _grep -q "$target_id"; then
+    return 0
+  fi
 
-    if [[ "$current_links" == "[]" ]]; then
-        update_yaml_field "$file" "links" "[$target_id]"
-    else
-        local new_links
-        new_links=${current_links//s/\]/$target_id]/}
-        update_yaml_field "$file" "links" "$new_links"
-    fi
+  if [[ "$current_links" == "[]" ]]; then
+    update_yaml_field "$file" "links" "[$target_id]"
+  else
+    local new_links
+    new_links=${current_links//s/\]/$target_id]/}
+    update_yaml_field "$file" "links" "$new_links"
+  fi
 }
 
 cmd_link() {
-    if [[ $# -lt 2 ]]; then
-        echo "Usage: ticket link <id> <id> [id...]" >&2
-        return 1
-    fi
+  if [[ $# -lt 2 ]]; then
+    echo "Usage: ticket link <id> <id> [id...]" >&2
+    return 1
+  fi
 
-    # Resolve all ticket paths first
-    local -a ids=() files=()
-    for arg in "$@"; do
-        local file
-        file=$(ticket_path "$arg") || return 1
-        ids+=("$(basename "$file" .md)")
-        files+=("$file")
+  # Resolve all ticket paths first
+  local -a ids=() files=()
+  for arg in "$@"; do
+    local file
+    file=$(ticket_path "$arg") || return 1
+    ids+=("$(basename "$file" .md)")
+    files+=("$file")
+  done
+
+  local count=0
+  for ((i = 0; i < ${#ids[@]}; i++)); do
+    local file="${files[$i]}"
+    local self="${ids[$i]}"
+
+    # Build list of other IDs to link
+    local others=""
+    for ((j = 0; j < ${#ids[@]}; j++)); do
+      [[ $i -ne $j ]] && others="$others ${ids[$j]}"
     done
 
-    local count=0
-    for ((i=0; i<${#ids[@]}; i++)); do
-        local file="${files[$i]}"
-        local self="${ids[$i]}"
-
-        # Build list of other IDs to link
-        local others=""
-        for ((j=0; j<${#ids[@]}; j++)); do
-            [[ $i -ne $j ]] && others="$others ${ids[$j]}"
-        done
-
-        # Update file with awk - add missing links
-        local result
-        result=$(awk -v self="$self" -v others="$others" '
+    # Update file with awk - add missing links
+    local result
+    result=$(awk -v self="$self" -v others="$others" '
         BEGIN {
             n = split(others, other_arr, " ")
             for (i = 1; i <= n; i++) need[other_arr[i]] = 1
@@ -1081,78 +1183,78 @@ cmd_link() {
         END { printf "%d", added > "/dev/stderr" }
         ' "$file" 2>&1 >"${file}.tmp")
 
-        mv "${file}.tmp" "$file"
-        ((count += result)) || true
-    done
+    mv "${file}.tmp" "$file"
+    ((count += result)) || true
+  done
 
-    if [[ $count -eq 0 ]]; then
-        echo "All links already exist"
-    else
-        echo "Added $count link(s) between ${#ids[@]} tickets"
-    fi
+  if [[ $count -eq 0 ]]; then
+    echo "All links already exist"
+  else
+    echo "Added $count link(s) between ${#ids[@]} tickets"
+  fi
 }
 
 remove_link_from_file() {
-    local file="$1"
-    local target_id="$2"
+  local file="$1"
+  local target_id="$2"
 
-    local current_links
-    current_links=$(yaml_field "$file" "links" || true)
+  local current_links
+  current_links=$(yaml_field "$file" "links" || true)
 
-    # Skip if not present
-    if [[ -z "$current_links" ]] || ! echo "$current_links" | _grep -q "$target_id"; then
-        return 0
-    fi
+  # Skip if not present
+  if [[ -z "$current_links" ]] || ! echo "$current_links" | _grep -q "$target_id"; then
+    return 0
+  fi
 
-    local new_links
-    new_links=$(echo "$current_links" | sed "s/, *$target_id//g; s/$target_id, *//g; s/$target_id//g")
-    [[ "$new_links" == "[]" || "$new_links" == "[, ]" || "$new_links" == "[ ]" ]] && new_links="[]"
+  local new_links
+  new_links=$(echo "$current_links" | sed "s/, *$target_id//g; s/$target_id, *//g; s/$target_id//g")
+  [[ "$new_links" == "[]" || "$new_links" == "[, ]" || "$new_links" == "[ ]" ]] && new_links="[]"
 
-    update_yaml_field "$file" "links" "$new_links"
+  update_yaml_field "$file" "links" "$new_links"
 }
 
 cmd_unlink() {
-    if [[ $# -lt 2 ]]; then
-        echo "Usage: ticket unlink <id> <target-id>" >&2
-        return 1
-    fi
+  if [[ $# -lt 2 ]]; then
+    echo "Usage: ticket unlink <id> <target-id>" >&2
+    return 1
+  fi
 
-    # Resolve both IDs to full IDs
-    local file target_file
-    file=$(ticket_path "$1") || return 1
-    target_file=$(ticket_path "$2") || return 1
-    local id target_id
-    id=$(basename "$file" .md)
-    target_id=$(basename "$target_file" .md)
+  # Resolve both IDs to full IDs
+  local file target_file
+  file=$(ticket_path "$1") || return 1
+  target_file=$(ticket_path "$2") || return 1
+  local id target_id
+  id=$(basename "$file" .md)
+  target_id=$(basename "$target_file" .md)
 
-    local current_links
-    current_links=$(yaml_field "$file" "links" || true)
+  local current_links
+  current_links=$(yaml_field "$file" "links" || true)
 
-    if [[ -z "$current_links" ]] || ! echo "$current_links" | _grep -q "$target_id"; then
-        echo "Link not found"
-        return 1
-    fi
+  if [[ -z "$current_links" ]] || ! echo "$current_links" | _grep -q "$target_id"; then
+    echo "Link not found"
+    return 1
+  fi
 
-    # Remove from both files
-    remove_link_from_file "$file" "$target_id"
-    remove_link_from_file "$target_file" "$id"
+  # Remove from both files
+  remove_link_from_file "$file" "$target_id"
+  remove_link_from_file "$target_file" "$id"
 
-    echo "Removed link: $(basename "$file" .md) <-> $target_id"
+  echo "Removed link: $(basename "$file" .md) <-> $target_id"
 }
 
 cmd_show() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: ticket show <id>" >&2
-        return 1
-    fi
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: ticket show <id>" >&2
+    return 1
+  fi
 
-    local file
-    file=$(ticket_path "$1") || return 1
-    local target_id
-    target_id=$(basename "$file" .md)
+  local file
+  file=$(ticket_path "$1") || return 1
+  local target_id
+  target_id=$(basename "$file" .md)
 
-    _show_output() {
-        awk -v target="$target_id" -v target_file="$file" '
+  _show_output() {
+    awk -v target="$target_id" -v target_file="$file" '
     BEGIN { FS=": "; in_front=0 }
 
     # First pass: collect all ticket metadata
@@ -1284,70 +1386,70 @@ cmd_show() {
         }
     }
     ' "$TICKETS_DIR"/*.md 2>/dev/null
-    }
+  }
 
-    if [[ -t 1 && -n "$TICKET_PAGER" ]]; then
-        read -r -a pager_cmd <<<"$TICKET_PAGER"
-        _show_output | "${pager_cmd[@]}"
-    else
-        _show_output
-    fi
+  if [[ -t 1 && -n "$TICKET_PAGER" ]]; then
+    read -r -a pager_cmd <<<"$TICKET_PAGER"
+    _show_output | "${pager_cmd[@]}"
+  else
+    _show_output
+  fi
 }
 
 cmd_add_note() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: ticket add-note <id> [note text]" >&2
-        return 1
-    fi
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: ticket add-note <id> [note text]" >&2
+    return 1
+  fi
 
-    local file
-    file=$(ticket_path "$1") || return 1
-    shift
+  local file
+  file=$(ticket_path "$1") || return 1
+  shift
 
-    local note
-    if [[ $# -gt 0 ]]; then
-        note="$*"
-    elif [[ ! -t 0 ]]; then
-        note=$(cat)
-    else
-        echo "Error: no note provided" >&2
-        return 1
-    fi
+  local note
+  if [[ $# -gt 0 ]]; then
+    note="$*"
+  elif [[ ! -t 0 ]]; then
+    note=$(cat)
+  else
+    echo "Error: no note provided" >&2
+    return 1
+  fi
 
-    local timestamp
-    timestamp=$(_iso_date)
+  local timestamp
+  timestamp=$(_iso_date)
 
-    # Add Notes section if missing, then append timestamped note
-    if ! grep -q '^## Notes' "$file"; then
-        printf '\n## Notes\n' >> "$file"
-    fi
-    printf '\n**%s**\n\n%s\n' "$timestamp" "$note" >> "$file"
+  # Add Notes section if missing, then append timestamped note
+  if ! grep -q '^## Notes' "$file"; then
+    printf '\n## Notes\n' >>"$file"
+  fi
+  printf '\n**%s**\n\n%s\n' "$timestamp" "$note" >>"$file"
 
-    echo "Note added to $(basename "$file" .md)"
+  echo "Note added to $(basename "$file" .md)"
 }
 
 cmd_edit() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: ticket edit <id>" >&2
-        return 1
-    fi
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: ticket edit <id>" >&2
+    return 1
+  fi
 
-    local file
-    file=$(ticket_path "$1") || return 1
+  local file
+  file=$(ticket_path "$1") || return 1
 
-    if [ -t 0 ] && [ -t 1 ]; then
-        "${EDITOR:-vi}" "$file"
-    else
-        echo "Edit ticket file: $file"
-    fi
+  if [ -t 0 ] && [ -t 1 ]; then
+    "${EDITOR:-vi}" "$file"
+  else
+    echo "Edit ticket file: $file"
+  fi
 }
 
 cmd_query() {
-    local filter="${1:-}"
+  local filter="${1:-}"
 
-    # Generate all JSON in one awk pass
-    local json_output
-    json_output=$(awk '
+  # Generate all JSON in one awk pass
+  local json_output
+  json_output=$(awk '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) emit()
@@ -1391,31 +1493,31 @@ cmd_query() {
     END { if (prev_file) emit() }
     ' "$TICKETS_DIR"/*.md 2>/dev/null)
 
-    if [[ -n "$filter" ]]; then
-        echo "$json_output" | jq -c "select($filter)"
-    else
-        echo "$json_output"
-    fi
+  if [[ -n "$filter" ]]; then
+    echo "$json_output" | jq -c "select($filter)"
+  else
+    echo "$json_output"
+  fi
 }
 
 cmd_migrate_beads() {
-    local jsonl=".beads/issues.jsonl"
-    if [[ ! -f "$jsonl" ]]; then
-        echo "Error: $jsonl not found" >&2
-        return 1
-    fi
+  local jsonl=".beads/issues.jsonl"
+  if [[ ! -f "$jsonl" ]]; then
+    echo "Error: $jsonl not found" >&2
+    return 1
+  fi
 
-    if ! command -v jq &>/dev/null; then
-        echo "Error: jq is required for migration" >&2
-        return 1
-    fi
+  if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required for migration" >&2
+    return 1
+  fi
 
-    ensure_dir
+  ensure_dir
 
-    # Single jq call generates all markdown with <<<FILE:id>>> delimiters
-    # Then awk splits into individual files (much faster than per-line jq calls)
-    # Beads dependency types map to: blocks->deps, parent-child->parent, related->links
-    jq -r '
+  # Single jq call generates all markdown with <<<FILE:id>>> delimiters
+  # Then awk splits into individual files (much faster than per-line jq calls)
+  # Beads dependency types map to: blocks->deps, parent-child->parent, related->links
+  jq -r '
         def by_type(t): [.dependencies[]? | select(.type == t) | .depends_on_id];
         def to_array: if length == 0 then "[]" else "[" + (map("\(.)") | join(", ")) + "]" end;
 
@@ -1459,85 +1561,85 @@ cmd_migrate_beads() {
 # Scripts: # tk-plugin: description (comment in first 10 lines)
 # Binaries: --tk-describe flag outputs description
 _list_plugins() {
-    local seen="" plugin cmd desc path out
+  local seen="" plugin cmd desc path out
 
-    for prefix in tk ticket; do
-        while IFS= read -r plugin; do
-            [[ -z "$plugin" ]] && continue
-            cmd="${plugin#${prefix}-}"
+  for prefix in tk ticket; do
+    while IFS= read -r plugin; do
+      [[ -z "$plugin" ]] && continue
+      cmd="${plugin#${prefix}-}"
 
-            # Skip if already seen (tk- takes precedence over ticket-)
-            case " $seen " in *" $cmd "*) continue ;; esac
-            seen="$seen $cmd"
+      # Skip if already seen (tk- takes precedence over ticket-)
+      case " $seen " in *" $cmd "*) continue ;; esac
+      seen="$seen $cmd"
 
-            path=$(command -v "$plugin" 2>/dev/null) || continue
-            [[ -f "$path" ]] || continue
+      path=$(command -v "$plugin" 2>/dev/null) || continue
+      [[ -f "$path" ]] || continue
 
-            desc=""
-            # Try comment first (fast, no execution)
-            desc=$(head -10 "$path" 2>/dev/null | grep -m1 '^# tk-plugin:' | sed 's/^# tk-plugin: *//')
+      desc=""
+      # Try comment first (fast, no execution)
+      desc=$(head -10 "$path" 2>/dev/null | grep -m1 '^# tk-plugin:' | sed 's/^# tk-plugin: *//')
 
-            # Fall back to --tk-describe for binaries (requires timeout command)
-            if [[ -z "$desc" ]] && command -v timeout &>/dev/null; then
-                if out=$(timeout 1 "$path" --tk-describe 2>/dev/null); then
-                    out=$(printf '%s' "$out" | head -1)
-                    [[ "$out" == "tk-plugin:"* ]] && desc="${out#tk-plugin: }"
-                fi
-            fi
+      # Fall back to --tk-describe for binaries (requires timeout command)
+      if [[ -z "$desc" ]] && command -v timeout &>/dev/null; then
+        if out=$(timeout 1 "$path" --tk-describe 2>/dev/null); then
+          out=$(printf '%s' "$out" | head -1)
+          [[ "$out" == "tk-plugin:"* ]] && desc="${out#tk-plugin: }"
+        fi
+      fi
 
-            printf "  %-22s %s\n" "$cmd" "${desc:-(no description)}"
-        done < <(compgen -c "${prefix}-" 2>/dev/null | sort -u)
-    done
+      printf "  %-22s %s\n" "$cmd" "${desc:-(no description)}"
+    done < <(compgen -c "${prefix}-" 2>/dev/null | sort -u)
+  done
 }
 
 cmd_prune() {
-    [[ ! -d "$TICKETS_DIR" ]] && return 0
+  [[ ! -d "$TICKETS_DIR" ]] && return 0
 
-    local days=7
-    local prune_all=0
-    local force=0
+  local days=7
+  local prune_all=0
+  local force=0
 
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --days=*)
-                days="${1#--days=}"
-                # Validate: must be a positive integer (>= 1)
-                if ! [[ "$days" =~ ^[1-9][0-9]*$ ]]; then
-                    echo "Error: --days requires a positive integer (got '$days')" >&2
-                    return 1
-                fi
-                shift
-                ;;
-            --all)
-                prune_all=1
-                shift
-                ;;
-            -f|--force)
-                force=1
-                shift
-                ;;
-            *)
-                echo "Error: unknown option '$1'" >&2
-                echo "Usage: $(basename "$0") prune [--days=N] [--all] [--force]" >&2
-                return 1
-                ;;
-        esac
-    done
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --days=*)
+      days="${1#--days=}"
+      # Validate: must be a positive integer (>= 1)
+      if ! [[ "$days" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error: --days requires a positive integer (got '$days')" >&2
+        return 1
+      fi
+      shift
+      ;;
+    --all)
+      prune_all=1
+      shift
+      ;;
+    -f | --force)
+      force=1
+      shift
+      ;;
+    *)
+      echo "Error: unknown option '$1'" >&2
+      echo "Usage: $(basename "$0") prune [--days=N] [--all] [--force]" >&2
+      return 1
+      ;;
+    esac
+  done
 
-    # Calculate cutoff timestamp (seconds since epoch)
-    local cutoff_epoch
-    cutoff_epoch=$(( $(date +%s) - (days * 86400) ))
+  # Calculate cutoff timestamp (seconds since epoch)
+  local cutoff_epoch
+  cutoff_epoch=$(($(date +%s) - (days * 86400)))
 
-    # Check for any ticket files first (glob may fail with set -e if empty)
-    local md_files
-    md_files=$(find "$TICKETS_DIR" -maxdepth 1 -name '*.md' 2>/dev/null)
-    [[ -z "$md_files" ]] && return 0
+  # Check for any ticket files first (glob may fail with set -e if empty)
+  local md_files
+  md_files=$(find "$TICKETS_DIR" -maxdepth 1 -name '*.md' 2>/dev/null)
+  [[ -z "$md_files" ]] && return 0
 
-    # Collect all ticket data in one awk pass
-    # Output format: filepath|id|status|closed_at|deps_csv|title
-    local ticket_data
-    ticket_data=$(awk '
+  # Collect all ticket data in one awk pass
+  # Output format: filepath|id|status|closed_at|deps_csv|title
+  local ticket_data
+  ticket_data=$(awk '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) emit()
@@ -1561,11 +1663,11 @@ cmd_prune() {
     END { if (prev_file) emit() }
     ' "$TICKETS_DIR"/*.md 2>/dev/null)
 
-    [[ -z "$ticket_data" ]] && return 0
+  [[ -z "$ticket_data" ]] && return 0
 
-    # Filter to eligible tickets (closed and not a dependency)
-    local eligible_tickets
-    eligible_tickets=$(echo "$ticket_data" | awk -F'|' '
+  # Filter to eligible tickets (closed and not a dependency)
+  local eligible_tickets
+  eligible_tickets=$(echo "$ticket_data" | awk -F'|' '
     function mark_protected(id,  i, n, arr) {
         if (id in protected) return
         protected[id] = 1
@@ -1582,61 +1684,61 @@ cmd_prune() {
             if ((stats[i]=="closed" || stats[i]=="done") && closed[i]!="" && !(ids[i] in protected)) print t[i]
     }')
 
-    [[ -z "$eligible_tickets" ]] && return 0
+  [[ -z "$eligible_tickets" ]] && return 0
 
-    # Prune eligible tickets
-    local count=0
-    while IFS='|' read -r filepath id status closed_at _deps title; do
-        # Check age threshold (unless --all)
-        if [[ "$prune_all" -eq 0 ]]; then
-            # Convert ISO date to epoch for comparison
-            # Handle both GNU and BSD date; skip if unparseable
-            local closed_epoch
-            if date -d "$closed_at" +%s &>/dev/null; then
-                closed_epoch=$(date -d "$closed_at" +%s)
-            elif closed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$closed_at" +%s 2>/dev/null); then
-                : # parsed successfully
-            else
-                # Malformed date — skip this ticket (treat as missing closed_at)
-                continue
-            fi
+  # Prune eligible tickets
+  local count=0
+  while IFS='|' read -r filepath id status closed_at _deps title; do
+    # Check age threshold (unless --all)
+    if [[ "$prune_all" -eq 0 ]]; then
+      # Convert ISO date to epoch for comparison
+      # Handle both GNU and BSD date; skip if unparseable
+      local closed_epoch
+      if date -d "$closed_at" +%s &>/dev/null; then
+        closed_epoch=$(date -d "$closed_at" +%s)
+      elif closed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$closed_at" +%s 2>/dev/null); then
+        : # parsed successfully
+      else
+        # Malformed date — skip this ticket (treat as missing closed_at)
+        continue
+      fi
 
-            # Skip if closed too recently
-            [[ "$closed_epoch" -gt "$cutoff_epoch" ]] && continue
-        fi
-
-        # Format closed date for display (just the date part)
-        local closed_display
-        closed_display="${closed_at%%T*}"
-
-        # Output the ticket info
-        local prefix=""
-        [[ "$force" -eq 0 ]] && prefix="[DRY-RUN] "
-        echo "${prefix}${id}: $title (closed $closed_display)"
-
-        # Delete only if --force is set
-        if [[ "$force" -eq 1 ]]; then
-            rm "$filepath"
-        fi
-
-        ((count++)) || true
-    done <<< "$eligible_tickets"
-
-    # Summary line
-    if [[ "$count" -gt 0 ]]; then
-        if [[ "$force" -eq 0 ]]; then
-            echo "Would prune $count tickets (use --force to delete)"
-        else
-            echo "Pruned $count tickets"
-        fi
+      # Skip if closed too recently
+      [[ "$closed_epoch" -gt "$cutoff_epoch" ]] && continue
     fi
-    # Silent exit (code 0) when count is 0, per design spec
+
+    # Format closed date for display (just the date part)
+    local closed_display
+    closed_display="${closed_at%%T*}"
+
+    # Output the ticket info
+    local prefix=""
+    [[ "$force" -eq 0 ]] && prefix="[DRY-RUN] "
+    echo "${prefix}${id}: $title (closed $closed_display)"
+
+    # Delete only if --force is set
+    if [[ "$force" -eq 1 ]]; then
+      rm "$filepath"
+    fi
+
+    ((count++)) || true
+  done <<<"$eligible_tickets"
+
+  # Summary line
+  if [[ "$count" -gt 0 ]]; then
+    if [[ "$force" -eq 0 ]]; then
+      echo "Would prune $count tickets (use --force to delete)"
+    else
+      echo "Pruned $count tickets"
+    fi
+  fi
+  # Silent exit (code 0) when count is 0, per design spec
 }
 
 cmd_help() {
-    local cmd
-    cmd=$(basename "$0")
-    cat << EOF
+  local cmd
+  cmd=$(basename "$0")
+  cat <<EOF
 $cmd $VERSION - minimal ticket system with dependency tracking
 
 Usage: $cmd <command> [args]
@@ -1680,18 +1782,18 @@ Commands:
   --version, -V            Print version
 EOF
 
-    # List installed plugins
-    local plugins
-    plugins=$(_list_plugins 2>/dev/null)
-    if [[ -n "$plugins" ]]; then
-        cat << EOF
+  # List installed plugins
+  local plugins
+  plugins=$(_list_plugins 2>/dev/null)
+  if [[ -n "$plugins" ]]; then
+    cat <<EOF
 
 Plugins (tk-<cmd> or ticket-<cmd> in PATH):
 $plugins
 EOF
-    fi
+  fi
 
-    cat << EOF
+  cat <<EOF
 
 Use 'super' to bypass plugins. Plugins receive TICKETS_DIR and TK_SCRIPT
 env vars; use '\$TK_SCRIPT super <cmd>' to call built-ins.
@@ -1708,57 +1810,114 @@ EOF
 # Handle 'super' to bypass plugins
 _tk_super=0
 if [[ "${1:-}" == "super" ]]; then
-    _tk_super=1
-    shift
+  _tk_super=1
+  shift
 fi
 
 # Check for plugin commands first (unless super mode)
 # Plugins are responsible for their own TICKETS_DIR handling
 if [[ $_tk_super -eq 0 && -n "${1:-}" && "${1:-}" != "help" && "${1:-}" != "--help" && "${1:-}" != "-h" ]]; then
-    for _prefix in tk ticket; do
-        _plugin="${_prefix}-$1"
-        if command -v "$_plugin" &>/dev/null; then
-            # Export context for plugins
-            export TICKETS_DIR="${TICKETS_DIR:-$(find_tickets_dir 2>/dev/null || echo "")}"
-            export TK_SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-            shift
-            exec "$_plugin" "$@"
-        fi
-    done
+  for _prefix in tk ticket; do
+    _plugin="${_prefix}-$1"
+    if command -v "$_plugin" &>/dev/null; then
+      # Export context for plugins
+      export TICKETS_DIR="${TICKETS_DIR:-$(find_tickets_dir 2>/dev/null || echo "")}"
+      export TK_SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+      shift
+      exec "$_plugin" "$@"
+    fi
+  done
 fi
 
 # Initialize tickets dir for built-in commands (skip for help)
 case "${1:-help}" in
-    help|--help|-h|--version|-V) ;;
-    *) init_tickets_dir "${1:-}" || exit 1 ;;
+help | --help | -h | --version | -V) ;;
+*) init_tickets_dir "${1:-}" || exit 1 ;;
 esac
 
 # Built-in commands
 case "${1:-help}" in
-    create) shift; cmd_create "$@" ;;
-    start)  shift; cmd_start "$@" ;;
-    close)  shift; cmd_close "$@" ;;
-    reopen) shift; cmd_reopen "$@" ;;
-    status) shift; cmd_status "$@" ;;
-    dep)    shift; cmd_dep "$@" ;;
-    undep)  shift; cmd_undep "$@" ;;
-    link)   shift; cmd_link "$@" ;;
-    unlink) shift; cmd_unlink "$@" ;;
-    ls|list) shift; cmd_ls "$@" ;;
-    ready)  shift; cmd_ready "$@" ;;
-    blocked) shift; cmd_blocked "$@" ;;
-    closed) shift; cmd_closed "$@" ;;
-    prune)  shift; cmd_prune "$@" ;;
-    show)   shift; cmd_show "$@" ;;
-    edit)   shift; cmd_edit "$@" ;;
-    add-note) shift; cmd_add_note "$@" ;;
-    query) shift; cmd_query "$@" ;;
-    migrate-beads) shift; cmd_migrate_beads "$@" ;;
-    help|--help|-h) cmd_help ;;
-    --version|-V) echo "ticket $VERSION" ;;
-    *)
-        echo "Unknown command: $1" >&2
-        cmd_help >&2
-        exit 1
-        ;;
+create)
+  shift
+  cmd_create "$@"
+  ;;
+start)
+  shift
+  cmd_start "$@"
+  ;;
+close)
+  shift
+  cmd_close "$@"
+  ;;
+reopen)
+  shift
+  cmd_reopen "$@"
+  ;;
+status)
+  shift
+  cmd_status "$@"
+  ;;
+dep)
+  shift
+  cmd_dep "$@"
+  ;;
+undep)
+  shift
+  cmd_undep "$@"
+  ;;
+link)
+  shift
+  cmd_link "$@"
+  ;;
+unlink)
+  shift
+  cmd_unlink "$@"
+  ;;
+ls | list)
+  shift
+  cmd_ls "$@"
+  ;;
+ready)
+  shift
+  cmd_ready "$@"
+  ;;
+blocked)
+  shift
+  cmd_blocked "$@"
+  ;;
+closed)
+  shift
+  cmd_closed "$@"
+  ;;
+prune)
+  shift
+  cmd_prune "$@"
+  ;;
+show)
+  shift
+  cmd_show "$@"
+  ;;
+edit)
+  shift
+  cmd_edit "$@"
+  ;;
+add-note)
+  shift
+  cmd_add_note "$@"
+  ;;
+query)
+  shift
+  cmd_query "$@"
+  ;;
+migrate-beads)
+  shift
+  cmd_migrate_beads "$@"
+  ;;
+help | --help | -h) cmd_help ;;
+--version | -V) echo "ticket $VERSION" ;;
+*)
+  echo "Unknown command: $1" >&2
+  cmd_help >&2
+  exit 1
+  ;;
 esac
