@@ -53,20 +53,6 @@ jobs:
           echo "nix_hash=$NIX_HASH" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update Homebrew tap
-        env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-        run: |
-          chmod +x scripts/publish-homebrew.sh
-          ./scripts/publish-homebrew.sh "${{ steps.sha.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
-
-      - name: Update AUR packages
-        env:
-          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
-        run: |
-          chmod +x scripts/publish-aur.sh
-          ./scripts/publish-aur.sh "${{ steps.sha.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
-
       - name: Validate script version matches tag
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
