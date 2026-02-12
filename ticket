@@ -1566,7 +1566,7 @@ _list_plugins() {
   for prefix in tk ticket; do
     while IFS= read -r plugin; do
       [[ -z "$plugin" ]] && continue
-      cmd="${plugin#${prefix}-}"
+      cmd="${plugin#"${prefix}"-}"
 
       # Skip if already seen (tk- takes precedence over ticket-)
       case " $seen " in *" $cmd "*) continue ;; esac
