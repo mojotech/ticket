@@ -1557,6 +1557,20 @@ cmd_migrate_beads() {
     '
 }
 
+# Find executables matching a prefix on PATH (portable alternative to compgen -c)
+_find_path_commands() {
+  local prefix="$1"
+  local IFS=':'
+  local dir
+  for dir in $PATH; do
+    [[ -d "$dir" ]] || continue
+    for f in "$dir/${prefix}"*; do
+      [[ -x "$f" && -f "$f" ]] || continue
+      basename "$f"
+    done
+  done | sort -u
+}
+
 # List installed plugins with descriptions
 # Scripts: # tk-plugin: description (comment in first 10 lines)
 # Binaries: --tk-describe flag outputs description
@@ -1588,7 +1602,7 @@ _list_plugins() {
       fi
 
       printf "  %-22s %s\n" "$cmd" "${desc:-(no description)}"
-    done < <(compgen -c "${prefix}-" 2>/dev/null | sort -u)
+    done < <(_find_path_commands "${prefix}-")
   done
 }
 
