@@ -1729,7 +1729,7 @@ fi
 
 # Initialize tickets dir for built-in commands (skip for help)
 case "${1:-help}" in
-    help|--help|-h) ;;
+    help|--help|-h|--version|-V) ;;
     *) init_tickets_dir "${1:-}" || exit 1 ;;
 esac
 
