@@ -1822,7 +1822,8 @@ if [[ $_tk_super -eq 0 && -n "${1:-}" && "${1:-}" != "help" && "${1:-}" != "--he
     if command -v "$_plugin" &>/dev/null; then
       # Export context for plugins
       export TICKETS_DIR="${TICKETS_DIR:-$(find_tickets_dir 2>/dev/null || echo "")}"
-      export TK_SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+      TK_SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+      export TK_SCRIPT
       shift
       exec "$_plugin" "$@"
     fi
