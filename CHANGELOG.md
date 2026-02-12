@@ -1,6 +1,10 @@
 # Changelog
 
-## [0.3.0] - 2026-01-16
+## [mojo-0.3.1] - 2026-02-12
+
+Pulled in wedow upstream master change to our fork
+
+## [mojo-0.3.0] - 2026-01-16
 
 ### Added
 
@@ -16,7 +20,7 @@
 - BSD sed compatibility in `update_yaml_field` (was GNU-only)
 - `update_yaml_field` now uses more robust first-line substitution for new fields
 
-## [0.2.3] - 2026-01-14
+## [mojo-0.2.3] - 2026-01-14
 
 ### Added
 
@@ -26,13 +30,13 @@
 
 - Clarified `--parent` flag documentation: advisory metadata for epic/subtask hierarchy, not a blocking dependency
 
-## [0.2.2] - 2026-01-13
+## [mojo-0.2.2] - 2026-01-13
 
 ### Added
 
 - `--version` / `-V` flag to print the current version
 
-## [0.2.1] - 2026-01-26
+## [mojo-0.2.1] - 2026-01-26
 
 ### Added
 - Plugin system: executables named `tk-<cmd>` or `ticket-<cmd>` in PATH are invoked automatically
