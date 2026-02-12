@@ -918,8 +918,10 @@ cmd_closed() {
   done
 
   # List files by mtime (most recent first), filter closed, limit output
+  # Use ls -t for portable mtime sorting (find -printf is GNU-only)
   local files
-  files=$(find "$TICKETS_DIR" -name "*.md" -type f -printf "%T+ %p\n" 2>/dev/null | sort -nr | head -n 100 | cut -d " " -f 2)
+  # shellcheck disable=SC2012  # ticket IDs are always alphanumeric, no special chars
+  files=$(ls -t "$TICKETS_DIR"/*.md 2>/dev/null | head -n 100)
   [[ -z "$files" ]] && return 0
   # shellcheck disable=SC2016
   echo "$files" | xargs awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
